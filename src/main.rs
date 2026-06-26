@@ -22,7 +22,8 @@ struct TicTacToe {
     winner: Option<Player>,
     current_player: Player,
     board_size: usize,
-    board: Vec<Vec<Option<Player>>>
+    board: Vec<Vec<Option<Player>>>,
+    turn_count: usize
 }
 
 struct Position {
@@ -38,7 +39,8 @@ impl TicTacToe {
             winner: None, 
             current_player: Player::X, 
             board_size: board_size,
-            board: (0..board_size).map(|_| (0..board_size).map(|_| None).collect()).collect()
+            board: (0..board_size).map(|_| (0..board_size).map(|_| None).collect()).collect(),
+            turn_count: 0
         }
     }
 
@@ -51,8 +53,13 @@ impl TicTacToe {
         }
         let position = maybe_position.unwrap();
         self.execute_move(position);
+        self.increment_turn_count();
         self.switch_player();
         self.evaluate_board();
+    }
+
+    fn increment_turn_count(&mut self) {
+        self.turn_count+=1;
     }
 
     fn get_position(&self) -> Option<Position> {
@@ -111,6 +118,11 @@ impl TicTacToe {
     }
 
     fn evaluate_board(&mut self) {
+        // skip calculating if the turn count aren't yet possible to calculate win
+        if self.turn_count < (self.board_size * 2) - 1 {
+            return;
+        }
+
         // check if board is filled with same player horizontally
         for row in &self.board {
             let clean_row: Vec<Player> = row.iter()
@@ -128,9 +140,9 @@ impl TicTacToe {
             }
         }
         // check if board is filled with same player vertically
-        for vertical_index in 0..self.board_size - 1 {
-            let clean_column: Vec<Player> = (0..self.board_size - 1)
-                .map(|horizontal_index| self.board[vertical_index][horizontal_index])
+        for vertical_index in 0..self.board_size {
+            let clean_column: Vec<Player> = (0..self.board_size)
+                .map(|horizontal_index| self.board[horizontal_index][vertical_index])
                 .filter(|v| !v.is_none())
                 .map(|v| v.unwrap())
                 .collect();
