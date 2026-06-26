@@ -188,12 +188,3 @@ enum Player {
     X,
     O
 }
-
-impl AsRef<str> for Player {
-    fn as_ref(&self) -> &str {
-        match self {
-            Player::X => "X",
-            Player::O => "O"
-        }
-    }
-}
