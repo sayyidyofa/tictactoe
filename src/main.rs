@@ -54,8 +54,8 @@ impl TicTacToe {
         let position = maybe_position.unwrap();
         self.execute_move(position);
         self.increment_turn_count();
-        self.switch_player();
         self.evaluate_board();
+        self.switch_player();
     }
 
     fn increment_turn_count(&mut self) {
@@ -158,6 +158,28 @@ impl TicTacToe {
         }
         
         // check if board is filled with same player diagonally
+        let major_diagonal: Vec<Player> = (0..self.board_size).map(|idx| self.board[idx][idx])
+            .filter(|v| !v.is_none())
+            .map(|v| v.unwrap())
+            .collect();
+        let first_value = major_diagonal[0];
+        if major_diagonal.iter().all(|v| *v == first_value) && major_diagonal.len() == self.board_size {
+            self.winner = Some(first_value);
+            self.has_game_ended = true;
+            return;
+        }
+
+        let last_index = self.board_size - 1;
+        let minor_diagonal: Vec<Player> = (0..self.board_size).map(|idx| self.board[idx][last_index - idx])
+            .filter(|v| !v.is_none())
+            .map(|v| v.unwrap())
+            .collect();
+        let first_value_minor = minor_diagonal[0];
+        if minor_diagonal.iter().all(|v| *v == first_value_minor) && minor_diagonal.len() == self.board_size {
+            self.winner = Some(first_value_minor);
+            self.has_game_ended = true;
+            return;
+        }
 
         // check if board is full (to check draw condition)
         if self.board.iter().all(|row| row.iter().all(|col| !col.is_none()))  {
