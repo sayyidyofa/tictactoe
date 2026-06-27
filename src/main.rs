@@ -9,8 +9,9 @@ fn main() {
     }
     game.display_board();
     println!("Game completed!");
-    if game.winner.is_some() {
-        println!("The winner is player {:?}", game.winner.unwrap());
+    // Taming the unwrap() with Pattern Matching
+    if let Some(winning_player) = game.winner {
+        println!("The winner is player {:?}", winning_player);
         return;
     }
     println!("The game is draw!");
@@ -26,6 +27,19 @@ struct TicTacToe {
     turn_count: usize
 }
 
+// When you add #[derive(Copy, Clone)] to Position, you are telling the compiler:
+// "This data is so small and simple that if I pass it to a function, just instantly duplicate the bits on the stack."
+//
+// When you call self.is_move_valid(maybe_position),
+// the CPU just shuffles a few bytes from one stack frame to another (or keeps them entirely inside the CPU's ultra-fast registers).
+// You might think that passing a reference (&Option<Position>) is faster because you aren't duplicating data.
+// However, for tiny data structures like this, copying by value is actually faster than passing a reference.
+// The Golden Rule for Structs:
+// If your struct only contains simple stack data (integers, booleans, floats, or simple enums),
+// always derive(Copy) and pass it by value.
+// Only use references (&) for complex structs that contain heap-allocated data like String or Vec,
+// where copying would be a massive performance hit.
+#[derive(Copy, Clone)]
 struct Position {
     row: usize,
     column: usize
@@ -38,8 +52,8 @@ impl TicTacToe {
             is_draw: false,
             winner: None, 
             current_player: Player::X, 
-            board_size: board_size,
-            board: (0..board_size).map(|_| (0..board_size).map(|_| None).collect()).collect(),
+            board_size,
+            board: vec![vec![None; board_size]; board_size],
             turn_count: 0
         }
     }
@@ -47,7 +61,7 @@ impl TicTacToe {
     fn turn(&mut self) {
         self.display_board();
         let maybe_position = self.get_position();
-        if !self.is_move_valid(&maybe_position) {
+        if !self.is_move_valid(maybe_position) {
             println!("Invalid position! expected valid row and column position (any number from 1 to {}) and is empty", self.board_size);
             return;
         }
@@ -65,20 +79,21 @@ impl TicTacToe {
     fn get_position(&self) -> Option<Position> {
         print!("({:?}) Input row: ", self.current_player);
         io::stdout().flush().unwrap();
-        let maybe_row = self.get_user_input();
-        if maybe_row.is_none() {
+        // The `?` says: "If this is Some, give me the value. If it's None, instantly return None from this function."
+        let maybe_row = self.get_user_input()?;
+        if maybe_row == 0 {
             return None;
         }
         print!("({:?}) Input column: ", self.current_player);
         io::stdout().flush().unwrap();
-        let maybe_column = self.get_user_input();
-        if maybe_column.is_none() {
+        let maybe_column = self.get_user_input()?;
+        if maybe_column == 0 {
             return None;
         }
         Some(
             Position { 
-                row: maybe_row.unwrap() - 1, 
-                column: maybe_column.unwrap() - 1 
+                row: maybe_row - 1,
+                column: maybe_column - 1
             }
         )
     }
@@ -86,14 +101,12 @@ impl TicTacToe {
     fn get_user_input(&self) -> Option<usize> {
         let mut user_input = String::new();
         io::stdin().read_line(&mut user_input).expect("Failed to read keyboard input");
-        let maybe_position = user_input.trim().parse::<usize>();
-        if maybe_position.is_err() {
-            return None;
-        }
-        return Some(maybe_position.unwrap());
+        // instead of manually checking for error and returning None,
+        // .ok() parses to a Result, converts to an Option, and returns it
+        user_input.trim().parse().ok()
     }
 
-    fn is_move_valid(&self, position: &Option<Position>) -> bool {
+    fn is_move_valid(&self, position: Option<Position>) -> bool {
         if position.is_none() {
             return false;
         }
@@ -125,82 +138,73 @@ impl TicTacToe {
 
         // check if board is filled with same player horizontally
         for row in &self.board {
-            let clean_row: Vec<Player> = row.iter()
-                .filter(|col| !col.is_none())
-                .map(|col| col.unwrap())
-                .collect();
-            if clean_row.len() < self.board_size {
-                continue;
-            }
-            let first_column = clean_row[0];
-            if clean_row.iter().all(|col| *col == first_column) {
-                self.winner = Some(first_column);
-                self.has_game_ended = true;
+            if row.iter().all(|col| *col == Some(self.current_player)) {
+                self.set_winner();
                 return;
             }
         }
         // check if board is filled with same player vertically
-        for vertical_index in 0..self.board_size {
-            let clean_column: Vec<Player> = (0..self.board_size)
-                .map(|horizontal_index| self.board[horizontal_index][vertical_index])
-                .filter(|v| !v.is_none())
-                .map(|v| v.unwrap())
-                .collect();
-            if clean_column.len() < self.board_size {
-                continue;
-            }
-            let first_value = clean_column[0];
-            if clean_column.iter().all(|v| *v == first_value) {
-                self.winner = Some(first_value);
-                self.has_game_ended = true;
+        for col_index in 0..self.board_size {
+            if self.is_winning_row(|_| col_index) {
+                self.set_winner();
                 return;
             }
         }
         
         // check if board is filled with same player diagonally
-        let major_diagonal: Vec<Player> = (0..self.board_size).map(|idx| self.board[idx][idx])
-            .filter(|v| !v.is_none())
-            .map(|v| v.unwrap())
-            .collect();
-        let first_value = major_diagonal[0];
-        if major_diagonal.iter().all(|v| *v == first_value) && major_diagonal.len() == self.board_size {
-            self.winner = Some(first_value);
-            self.has_game_ended = true;
+        // major diagonal
+        if self.is_winning_row(|idx| idx) {
+            self.set_winner();
             return;
         }
-
+        // minor diagonal
         let last_index = self.board_size - 1;
-        let minor_diagonal: Vec<Player> = (0..self.board_size).map(|idx| self.board[idx][last_index - idx])
-            .filter(|v| !v.is_none())
-            .map(|v| v.unwrap())
-            .collect();
-        let first_value_minor = minor_diagonal[0];
-        if minor_diagonal.iter().all(|v| *v == first_value_minor) && minor_diagonal.len() == self.board_size {
-            self.winner = Some(first_value_minor);
-            self.has_game_ended = true;
+        if self.is_winning_row(|idx| last_index - idx) {
+            self.set_winner();
             return;
         }
 
-        // check if board is full (to check draw condition)
-        if self.board.iter().all(|row| row.iter().all(|col| !col.is_none()))  {
-            self.has_game_ended = true;
-            self.is_draw = true;
+        if self.is_full()  {
+            self.set_draw();
             return;
         }
     }
 
+    // either horizonal, vertical, or diagonal row
+    fn is_winning_row(&self, secondary_index_extractor: impl Fn(usize) -> usize) -> bool {
+        (0..self.board_size).all(|idx| {
+            let secondary_index = secondary_index_extractor(idx);
+            self.board[idx][secondary_index] == Some(self.current_player)
+        })
+    }
+
+    fn set_winner(&mut self) {
+        self.winner = Some(self.current_player);
+        self.has_game_ended = true;
+    }
+
+    fn set_draw(&mut self) {
+        self.is_draw = true;
+        self.has_game_ended = true;
+    }
+
+    // check if board is full (to check draw condition)
+    fn is_full(&self) -> bool {
+        self.board.iter().all(|row| row.iter().all(|col| !col.is_none()))
+    }
+
     fn display_board(&self) {
+        println!();
         for row in &self.board {
-            let stringified: Vec<&str> = row.iter().map(|col| {
-                if col.is_none() {
-                    return "";
-                }
-                if col.unwrap() == Player::X {
-                    return "X";
-                }
-                return "O";
-            }).collect();
-            println!("{:?}", stringified);
+            for col in row {
+                let symbol = match col {
+                    Some(Player::X) => 'X',
+                    Some(Player::O) => 'O',
+                    None => '_'
+                };
+                print!("{} ", symbol);
+            }
+            println!();
         }
     }
 }
