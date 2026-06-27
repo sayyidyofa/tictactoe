@@ -107,10 +107,9 @@ impl TicTacToe {
     }
 
     fn is_move_valid(&self, position: Option<Position>) -> bool {
-        if position.is_none() {
+        let Some(real_pos) = position else {
             return false;
-        }
-        let real_pos = position.as_ref().unwrap();
+        };
         if real_pos.column >= self.board_size 
         || real_pos.row >= self.board_size {
             return false;
@@ -131,7 +130,7 @@ impl TicTacToe {
     }
 
     fn evaluate_board(&mut self) {
-        // skip calculating if the turn count aren't yet possible to calculate win
+        // skip calculating if the turn count isn't yet possible to calculate win
         if self.turn_count < (self.board_size * 2) - 1 {
             return;
         }
@@ -190,7 +189,7 @@ impl TicTacToe {
 
     // check if board is full (to check draw condition)
     fn is_full(&self) -> bool {
-        self.board.iter().all(|row| row.iter().all(|col| !col.is_none()))
+        self.board.iter().all(|row| row.iter().all(|col| col.is_some()))
     }
 
     fn display_board(&self) {
