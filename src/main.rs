@@ -2,7 +2,7 @@ use std::io::{self, Write};
 
 
 fn main() {
-    println!("TicTacToe");
+    println!("TicTacToe Game");
     let mut game = TicTacToe::new(3);
     game.play();
 }
